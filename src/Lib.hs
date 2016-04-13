@@ -10,6 +10,7 @@ import Data.Maybe (fromMaybe)
 import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate)
 import Data.Csv hiding (lookup)
 import GHC.Generics
+import Data.Char (ord)
 import Data.Text (Text, pack)
 import qualified Data.ByteString.Lazy as B
 {- Post-processing
@@ -80,7 +81,8 @@ header =  ["NTs", "NT_pos ","AAs", "AAposition","Type"]
 
 process s = do
   xs <- getDegens s
-  return $ encodeDefaultOrderedByName $ map toRow xs
+  return $ encodeDefaultOrderedByNameWith outOptions $ map toRow xs
+  where outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')}
 
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
@@ -138,4 +140,4 @@ codonTable = H.fromList $ zip codons aas
     char2AA x = fromMaybe (error ("Bad AA " ++ show x) ) $ lookup x (zip (map (head . show) [K ..] ) [K ..])
 
 ambigNts = ['R', 'S', 'K', 'V', 'B', 'Y', 'W', 'M', 'H']
--- (length aas, length codons) -- these need to be equal
+-- (length aas, length codons) -- these need to be equal 
