@@ -1,13 +1,17 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Lib
     ( someFunc,
       expand,
       AA(..),
       Codon) where
-
 import Data.Hashable 
 import qualified Data.HashMap.Strict as H
 import Data.Maybe (fromMaybe)
 import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate)
+import Data.Csv hiding (lookup)
+import GHC.Generics
+import Data.Text (Text, pack)
+import qualified Data.ByteString.Lazy as B
 {- Post-processing
  - * note stop codons
  - check frame shifts (length check)
@@ -29,19 +33,19 @@ import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate)
 -- | 4      | A-A |  *    |    *       | Gap |
 -- | 4      | ATA |  A    |    2       | Stop Codon|
 -- | 4      | ATA |  A    |    2       | Stop Codon|
-
+-- how handle a *possible* stop codon?
+-- should codons with multiple degens output NT degen indices?
 
 type Index = Int
 
 data AA = K | N | T | R | S | I | M | Q | H | P | L | E | D | A | G | V | Z | Y | C | W | F
-  deriving (Show, Eq, Enum)
+  deriving (Show, Eq, Enum, Generic)
 
 newtype Codon = Codon String
   deriving (Eq, Show)
 instance Hashable Codon where
   hashWithSalt salt (Codon s) = hashWithSalt salt s
--- how handle a *possible* stop codon?
--- should codons with multiple degens output NT degen indices?
+  
 data Degen  = Insert Codon Index
             | WithN Codon Index
             | StopCodon AA Index Codon [Index]
@@ -50,34 +54,33 @@ data Degen  = Insert Codon Index
 
 
 type CodonTable = H.HashMap Codon AA
-data Row = Row { codon :: Codon
-                ,aa :: Maybe [AA]
-                ,ntPos :: Maybe [Index]
-                ,aaPos :: Index
-                ,rowType :: RowType} -- etc.
+data Row = Row { codon ::   !Text
+                ,aa ::      !Text
+                ,ntPos ::   !Text
+                ,aaPos ::   !Index
+                ,rowType :: !Text} -- etc. 
+ deriving Generic
+
+instance FromNamedRecord Row
+instance ToNamedRecord   Row
+instance DefaultOrdered  Row
 
 data RowType = InsertT | WithNT | StopCodonT | SynonymousT | NonSynonymousT
   deriving (Show, Eq)
-
 toRow :: Degen -> Row
-toRow  (Insert cdn idx)                 =  Row cdn Nothing Nothing idx InsertT
-toRow  (WithN  cdn idx)                 =  Row cdn Nothing Nothing idx WithNT
-toRow  (StopCodon      aa aaI cdn  ntI) =  Row cdn (Just [aa]) (Just ntI) aaI StopCodonT
-toRow  (Synonymous     aa aaI cdn  ntI) =  Row cdn (Just [aa]) (Just ntI) aaI SynonymousT
-toRow  (NonSynonymous aas aaI cdn  ntI) =  Row cdn (Just aas)  (Just ntI) aaI NonSynonymousT
+toRow  (Insert                (Codon nts)  idx)  =  Row (pack nts) (pack "-") (pack "-") idx $ text InsertT
+toRow  (WithN                 (Codon nts)  idx)  =  Row (pack nts) (pack "-") (pack "-") idx $ text WithNT
+toRow  (StopCodon      aa aaI (Codon nts)  ntI) =   Row (pack nts) (text aa)  (join ntI) aaI $ text StopCodonT
+toRow  (Synonymous     aa aaI (Codon nts)  ntI) =   Row (pack nts) (text aa)  (join ntI) aaI $ text SynonymousT
+toRow  (NonSynonymous aas aaI (Codon nts)  ntI) =   Row (pack nts) (join aas) (join ntI) aaI $ text NonSynonymousT
 
-header = intercalate "/" ["NTs", "NT_pos ","AAs", "AAposition","Type"]
+text a = pack (show a)
+join xs = pack (intercalate "/" $ map show xs)
+header =  ["NTs", "NT_pos ","AAs", "AAposition","Type"]
 
-showRow :: Row -> String
-showRow Row{codon=(Codon nts),aa=aas,ntPos=ntI,aaPos=aaI,rowType=rowT} =
-  intercalate ['\t'] cols
-    where
-      cols = [nts, ntI', aas', aaI', rowT']
-      aas'  = intercalate "/" $ fromMaybe ["-"] $ (map show) <$> aas
-      aaI'  = show aaI
-      ntI'  = defaultStr $ show <$> ntI
-      rowT' = show rowT
-      defaultStr x = fromMaybe "-" x
+process s = do
+  xs <- getDegens s
+  return $ encodeDefaultOrderedByName $ map toRow xs
 
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
@@ -92,17 +95,16 @@ toDegen cdn@(Codon nts) aas i
 
 someFunc = do
   print $ expand  "ATR" -- "Isoleucine", -- "Methionine Start",
+  B.putStrLn $ fromMaybe (error "Error!") $ process "ATR"
   print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
   print $ expand  "zzz"  -- Nothing, not in `degen` list
   print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3
-  --print (length aas, length codons) -- these need to be equal
+  --print 
   
 getDegens :: String -> Maybe [Degen]
 getDegens s = do
   (cds, aas) <- unzip <$> expand s
   return $ zipWith3 toDegen cds aas [1..]
-  
-  
 
 expand :: String -> Maybe [(Codon, [AA])]
 expand xs = (zip codons) <$> expandeds
@@ -127,19 +129,13 @@ allBases = H.fromList (ambig ++ nonAmbig ++ otherBases)
     ambig      = zip ambigNts ambigExp
     zipString :: String -> [(Char, String)]
     zipString xs = zip xs $ map (:[]) xs
+    
 codonTable :: CodonTable
 codonTable = H.fromList $ zip codons aas
   where 
     codons = map Codon $ sequence $ replicate 3 "ACGT" 
-    aas = map char2AA "KNKNTTTTRSRSIIMIQHQHPPPPRRRRLLLLEDEDAAAAGGGGVVVVZYZYSSSSZCWCLFLF"
+    aas = map char2AA ("KNKNTTTTRSRSIIMIQHQHPPPPRRRRLLLLEDEDAAAAGGGGVVVVZYZYSSSSZCWCLFLF" :: String)
     char2AA x = fromMaybe (error ("Bad AA " ++ show x) ) $ lookup x (zip (map (head . show) [K ..] ) [K ..])
 
-
-
---ambig =  [ ('R', "AG"), ('Y', "CT"),
---           ('S', "GC"), ('W', "AT"),
---           ('K', "TG"), ('M', "CA"),
---           ('V', "ACG"),('H', "ACT"),
---           ('B', "CGT")]  -- Doesn't include `N`
-
 ambigNts = ['R', 'S', 'K', 'V', 'B', 'Y', 'W', 'M', 'H']
+-- (length aas, length codons) -- these need to be equal

@@ -20,6 +20,9 @@ library
                      , containers
                      , unordered-containers
                      , hashable
+                     , cassava
+                     , text
+                     , bytestring
   default-language:    Haskell2010
 
 executable Maaps-exe
