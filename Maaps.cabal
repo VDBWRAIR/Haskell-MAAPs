@@ -23,6 +23,7 @@ library
                      , cassava
                      , text
                      , bytestring
+                     , safe
   default-language:    Haskell2010
 
 executable Maaps-exe
