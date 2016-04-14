@@ -13,6 +13,9 @@ import GHC.Generics
 import Data.Char (ord)
 import Data.Text (Text, pack)
 import qualified Data.ByteString.Lazy as B
+--TODO: Convert maybes to Either with error descriptions
+--TODO: Row should not be stringly typed
+
 {- Post-processing
  - * note stop codons
  - check frame shifts (length check)
@@ -52,36 +55,48 @@ data Degen  = Insert Codon Index
             | StopCodon AA Index Codon [Index]
             | Synonymous AA Index Codon [Index]
             | NonSynonymous [AA] Index Codon [Index]
+            | FrameShift Index -- Codon index or AA Index?
 
 
 type CodonTable = H.HashMap Codon AA
+
 data Row = Row { codon ::   !Text
                 ,aa ::      !Text
-                ,ntPos ::   !Text
+                ,ntPos ::   !Indices
                 ,aaPos ::   !Index
-                ,rowType :: !Text} -- etc. 
+                ,rowType :: !RowType} 
  deriving Generic
 
-instance FromNamedRecord Row
+--instance FromNamedRecord Row
 instance ToNamedRecord   Row
 instance DefaultOrdered  Row
+newtype Indices = Indices [Index]
+  deriving (Generic)
+instance ToField Indices where
+  toField (Indices xs) = toField $ join "," xs
+data RowType = InsertT | WithNT | StopCodonT | SynonymousT | NonSynonymousT | FrameShiftT
+  deriving (Show, Eq, Generic)
+instance ToField RowType
+  where toField = toField . show
 
-data RowType = InsertT | WithNT | StopCodonT | SynonymousT | NonSynonymousT
-  deriving (Show, Eq)
 toRow :: Degen -> Row
-toRow  (Insert                (Codon nts)  idx)  =  Row (pack nts) (pack "-") (pack "-") idx $ text InsertT
-toRow  (WithN                 (Codon nts)  idx)  =  Row (pack nts) (pack "-") (pack "-") idx $ text WithNT
-toRow  (StopCodon      aa aaI (Codon nts)  ntI) =   Row (pack nts) (text aa)  (join ntI) aaI $ text StopCodonT
-toRow  (Synonymous     aa aaI (Codon nts)  ntI) =   Row (pack nts) (text aa)  (join ntI) aaI $ text SynonymousT
-toRow  (NonSynonymous aas aaI (Codon nts)  ntI) =   Row (pack nts) (join aas) (join ntI) aaI $ text NonSynonymousT
+toRow row = case row of 
+  (Insert                (Codon nts)  idx) ->  Row (pack nts) (pack "-") (Indices []) idx InsertT
+  (WithN                 (Codon nts)  idx) ->  Row (pack nts) (pack "-") (Indices []) idx WithNT
+  (StopCodon      aa aaI (Codon nts)  ntI) ->  Row (pack nts) (text aa)  (Indices []) aaI StopCodonT
+  (Synonymous     aa aaI (Codon nts)  ntI) ->  Row (pack nts) (text aa)  (Indices ntI) aaI SynonymousT
+  (NonSynonymous aas aaI (Codon nts)  ntI) ->  Row (pack nts) (join "/" aas) (Indices ntI) aaI NonSynonymousT
+  (FrameShift i)                           ->  Row (pack "-") (pack "-") (Indices []) i   FrameShiftT
 
 text a = pack (show a)
-join xs = pack (intercalate "/" $ map show xs)
-header =  ["NTs", "NT_pos ","AAs", "AAposition","Type"]
+join c xs = pack (intercalate c $ map show xs)
+
+toRows :: String -> Maybe [Row]
+toRows s = (map toRow) <$> getDegens s
 
 process s = do
-  xs <- getDegens s
-  return $ encodeDefaultOrderedByNameWith outOptions $ map toRow xs
+  xs <- toRows s
+  return $ encodeDefaultOrderedByNameWith outOptions $ xs
   where outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')}
 
 toDegen :: Codon -> [AA] -> Index -> Degen
@@ -89,11 +104,12 @@ toDegen cdn@(Codon nts) aas i
   | '-' `elem` nts = Insert cdn i
   | 'N' `elem` nts = WithN  cdn i
   | otherwise = case aas of
+       ([])  ->   FrameShift    i 
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
        (aa:[]) -> Synonymous    aa  i cdn  ntIdxs
        aas   ->   NonSynonymous aas i cdn  ntIdxs
   where
-    ntIdxs = map (+ (i * 3) ) $ findIndices (`elem` ambigNts) nts
+    ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
 
 someFunc = do
   print $ expand  "ATR" -- "Isoleucine", -- "Methionine Start",
@@ -101,8 +117,15 @@ someFunc = do
   print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
   print $ expand  "zzz"  -- Nothing, not in `degen` list
   print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3
-  --print 
-  
+  --print
+newtype Error = Error String
+--toCodon :: String -> Either Error Codon
+--toCodon s@(x:y:z:[]) = Right $ Codon s
+--toCodon s            = Left  $ "Codon wrong length: "  ++ show s
+
+toCodon :: String -> Maybe Codon
+toCodon s@(x:y:z:[]) = Just  $ Codon s
+toCodon s            = Nothing
 getDegens :: String -> Maybe [Degen]
 getDegens s = do
   (cds, aas) <- unzip <$> expand s
@@ -114,23 +137,24 @@ expand xs = (zip codons) <$> expandeds
     codons = map Codon $ takeWhile (not . null) $ unfoldr (Just . (splitAt 3)) xs
     expandeds = sequence $ map expandTriple $ codons 
    
-expandTriple :: Codon -> Maybe [AA]
+expandTriple :: Codon -> Maybe [AA] -- change to Either
 expandTriple (Codon xs) = do
     degens' <- lookups allBases xs
     let perms = map Codon $ sequence degens'
     aas' <- lookups codonTable perms
     return aas'
- where lookups m xs' = sequence $ map (`H.lookup` m) xs' 
-
-allBases :: H.HashMap Char String
-allBases = H.fromList (ambig ++ nonAmbig ++ otherBases) 
-  where
-    nonAmbig   = zipString "ACTG"
-    otherBases = zipString "N-"
-    ambigExp   = ["AG", "GC", "TG", "ACG", "CGT", "CT", "AT", "CA", "ACT"]
-    ambig      = zip ambigNts ambigExp
-    zipString :: String -> [(Char, String)]
-    zipString xs = zip xs $ map (:[]) xs
+ where
+  lookups m xs' = sequence $ map (`H.lookup` m) xs'
+  
+  allBases :: H.HashMap Char String
+  allBases = H.fromList (ambig ++ nonAmbig ++ otherBases) 
+    where
+      nonAmbig   = zipString "ACTG"
+      otherBases = zipString "N-"
+      ambigExp   = ["AG", "GC", "TG", "ACG", "CGT", "CT", "AT", "CA", "ACT"]
+      ambig      = zip ambigNts ambigExp
+      zipString :: String -> [(Char, String)]
+      zipString xs = zip xs $ map (:[]) xs
     
 codonTable :: CodonTable
 codonTable = H.fromList $ zip codons aas
