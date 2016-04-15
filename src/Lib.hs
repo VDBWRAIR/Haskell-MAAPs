@@ -1,9 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Lib
-    ( someFunc,
-      expand,
-      AA(..),
-      Codon) where
+{-# LANGUAGE OverloadedStrings #-}
+module Lib where
 import Data.Hashable 
 import qualified Data.HashMap.Strict as H
 import Data.Maybe (fromMaybe)
@@ -50,54 +47,40 @@ newtype Codon = Codon String
 instance Hashable Codon where
   hashWithSalt salt (Codon s) = hashWithSalt salt s
   
+type CodonTable = H.HashMap Codon AA
+
+data RowType = InsertT | WithNT | StopCodonT | SynonymousT | NonSynonymousT | FrameShiftT
+  deriving (Show, Eq, Generic)
+
 data Degen  = Insert Codon Index
             | WithN Codon Index
             | StopCodon AA Index Codon [Index]
             | Synonymous AA Index Codon [Index]
             | NonSynonymous [AA] Index Codon [Index]
-            | FrameShift Index -- Codon index or AA Index?
-
-
-type CodonTable = H.HashMap Codon AA
-
-data Row = Row { codon ::   !Text
-                ,aa ::      !Text
-                ,ntPos ::   !Indices
-                ,aaPos ::   !Index
-                ,rowType :: !RowType} 
- deriving Generic
-
---instance FromNamedRecord Row
-instance ToNamedRecord   Row
-instance DefaultOrdered  Row
-newtype Indices = Indices [Index]
-  deriving (Generic)
-instance ToField Indices where
-  toField (Indices xs) = toField $ join "," xs
-data RowType = InsertT | WithNT | StopCodonT | SynonymousT | NonSynonymousT | FrameShiftT
-  deriving (Show, Eq, Generic)
-instance ToField RowType
-  where toField = toField . show
-
-toRow :: Degen -> Row
-toRow row = case row of 
-  (Insert                (Codon nts)  idx) ->  Row (pack nts) (pack "-") (Indices []) idx InsertT
-  (WithN                 (Codon nts)  idx) ->  Row (pack nts) (pack "-") (Indices []) idx WithNT
-  (StopCodon      aa aaI (Codon nts)  ntI) ->  Row (pack nts) (text aa)  (Indices []) aaI StopCodonT
-  (Synonymous     aa aaI (Codon nts)  ntI) ->  Row (pack nts) (text aa)  (Indices ntI) aaI SynonymousT
-  (NonSynonymous aas aaI (Codon nts)  ntI) ->  Row (pack nts) (join "/" aas) (Indices ntI) aaI NonSynonymousT
-  (FrameShift i)                           ->  Row (pack "-") (pack "-") (Indices []) i   FrameShiftT
-
-text a = pack (show a)
-join c xs = pack (intercalate c $ map show xs)
-
-toRows :: String -> Maybe [Row]
-toRows s = (map toRow) <$> getDegens s
+            | FrameShift Index -- Codon index or AA Index? Should make newtypes
+              
+-- *** Exception: Data.Csv.Encoding.namedRecordToRecord: header contains name "RowType" which is not present in the named record
+instance ToRecord Degen where
+  toRecord x = case x of
+    (Insert                (Codon nts)  idx) -> record [tf' nts, tf idx,       "-", "-",     tf InsertT]
+    (WithN                 (Codon nts)  idx) -> record [tf' nts, tf idx,       "-", "-",     tf WithNT]
+    (FrameShift idx)                         -> record ["-",     tf idx,       "-", "-",     tf FrameShiftT]
+    (StopCodon      aa aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, tf aa, tf  aaI, tf StopCodonT]
+    (Synonymous     aa aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, tf aa, tf aaI,  tf SynonymousT]
+    (NonSynonymous aas aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, jf "/" aas,     tf NonSynonymousT]
+    where
+      tf' = toField
+      tf a = toField $ pack (show a)
+    
+jf c xs = toField $ pack (intercalate c $ map show xs)
 
 process s = do
-  xs <- toRows s
-  return $ encodeDefaultOrderedByNameWith outOptions $ xs
-  where outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')}
+  xs <- getDegens s
+  return $ B.concat [header', "\n", (encodeWith outOptions xs)]
+  where
+    outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
+    header' = B.intercalate "\t" fields
+    fields = ["Codon", "NTPos", "AA", "AAPos", "RowType"]
 
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
@@ -117,15 +100,11 @@ someFunc = do
   print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
   print $ expand  "zzz"  -- Nothing, not in `degen` list
   print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3
-  --print
-newtype Error = Error String
---toCodon :: String -> Either Error Codon
---toCodon s@(x:y:z:[]) = Right $ Codon s
---toCodon s            = Left  $ "Codon wrong length: "  ++ show s
-
+  
 toCodon :: String -> Maybe Codon
 toCodon s@(x:y:z:[]) = Just  $ Codon s
 toCodon s            = Nothing
+
 getDegens :: String -> Maybe [Degen]
 getDegens s = do
   (cds, aas) <- unzip <$> expand s
@@ -144,8 +123,7 @@ expandTriple (Codon xs) = do
     aas' <- lookups codonTable perms
     return aas'
  where
-  lookups m xs' = sequence $ map (`H.lookup` m) xs'
-  
+  lookups m xs' = sequence $ map (`H.lookup` m) xs' 
   allBases :: H.HashMap Char String
   allBases = H.fromList (ambig ++ nonAmbig ++ otherBases) 
     where
