@@ -1,35 +1,14 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DataKinds         #-}  -- these two needed for help output
-{-# LANGUAGE TypeOperators     #-}
-module Main where
-
-import Lib  (process, RowType(..))
-import Options.Generic
-import Options.Applicative.Types
--- type FilePath = String
-data Seperator = Tab | Comma
-  deriving (Show, Eq, Generic)
--- , geneSource :: Maybe GenBankSource <?> "Genbank ID, Genbank file, or csv file"
-      
-deriving instance Read Seperator
-instance ParseField Seperator
-      
-deriving instance Read RowType
-instance ParseField RowType
-data Options = Options {   filter :: [RowType] <?> "What show -- Insert, etc.."
-                         , sep :: First Seperator <?> "Comma or Tab output"
-                         , fasta :: FilePath <?> "Input aligned fasta file"
-                         , align :: Bool <?> "Align the sequence first?"}
-             deriving (Generic, Show)
-
-instance ParseRecord Options
+module Main where 
+import Lib  (process, run)
+import Types (Options, RowType(..))
+import Options.Generic (getRecord)
 
 main :: IO ()
 main = do
   x <- getRecord "Running Program"
   print (x :: Options)
+  run   (x :: Options)
 
   
 --data GenBankSource = GBFile FilePath | CSVFile FilePath | GBID String
