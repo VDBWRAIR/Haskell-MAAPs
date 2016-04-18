@@ -4,21 +4,25 @@ module Lib where
 import qualified Data.HashMap.Strict as H
 import Data.Hashable 
 import Data.Maybe (fromMaybe)
-import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate)
+import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate, intersect)
 import GHC.Generics
 import Data.Char (ord)
 import Data.Csv hiding (lookup)
 import Data.Text (Text, pack)
+import Control.Monad (forM_)
 import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString.Lazy.Char8 as C
 import Bio.Sequence.Fasta (readFasta, toStr, seqdata)
 import Options.Generic 
 import Types
--- If I put import Types here it fails
--- (or import Main here it fails0
+
+ 
 
 {-
-TODO: Convert maybes to Either with error descriptions
-TODO: Row should not be stringly typed
+TODO: Fix formatting somehow
+TODO: Report fasta IDs somehow
+X TODO: Convert maybes to Either with error descriptions
+X TODO: Row should not be stringly typed
 
  Post-processing
  * note stop codons
@@ -44,22 +48,30 @@ TODO: Row should not be stringly typed
  how handle a *possible* stop codon?
  should codons with multiple degens output NT degen indices?
 -}
-    
+
+type Error = String
 
 run :: Options -> IO ()
 run opts = do
   recs <- readFasta (unHelpful $ fasta opts)
-  --let strs = concatMap (\(Seq _ (SeqData seq) _) -> seq) recs
-  let strs = concatMap (toStr . seqdata) recs
-  print $ process strs
-  
+  let strs = map (toStr . seqdata) recs
+  forM_ strs printOne
+  where
+    printOne x = either putStrLn (`forM_` C.putStrLn) $ process x
+
+process :: String -> (Either Error [B.ByteString])
 process s = do
-  xs <- getDegens s
-  return $ B.concat [header', "\n", (encodeWith outOptions xs)]
+  xs <- filter (not . isNormal) <$> dropStopCodon <$> getDegens s
+  --return $ B.concat [header', "\n", (encodeWith outOptions xs)]
+  return $ [header', "\n", (encodeWith outOptions xs)]
   where
     outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
     header' = B.intercalate "\t" fields
     fields = ["Codon", "NTPos", "AA", "AAPos", "RowType"]
+    isNormal NormalCodon = True
+    isNormal _           = False
+    dropStopCodon ((StopCodon _ _ _ _ ):[]) = []
+    dropStopCodon (x:xs)                    = x : dropStopCodon xs
 
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
@@ -68,14 +80,15 @@ toDegen cdn@(Codon nts) aas i
   | otherwise = case aas of
        ([])  ->   FrameShift    i 
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
-       (aa:[]) -> Synonymous    aa  i cdn  ntIdxs
+       (aa:[]) -> if (not $ doIntersect nts ambigNts) then NormalCodon else Synonymous    aa  i cdn  ntIdxs
        aas   ->   NonSynonymous aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
 
 someFunc = do
   print $ expand  "ATR" -- "Isoleucine", -- "Methionine Start",
-  B.putStrLn $ fromMaybe (error "Error!") $ process "ATR"
+  --B.putStrLn $ fromMaybe (error "Error!") $ process "ATR"
+  either error print $ process "ATR"
   print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
   print $ expand  "zzz"  -- Nothing, not in `degen` list
   print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3
@@ -84,27 +97,38 @@ toCodon :: String -> Maybe Codon
 toCodon s@(x:y:z:[]) = Just  $ Codon s
 toCodon s            = Nothing
 
-getDegens :: String -> Maybe [Degen]
+getDegens :: String -> Either Error [Degen] 
 getDegens s = do
   (cds, aas) <- unzip <$> expand s
+  --let ambigs = filter (\((Codon s), _, _) -> doIntersect s ambigNts) $ zip3 cds aas [1..]
+  --return $ map  (uncurry3 toDegen) ambigs
   return $ zipWith3 toDegen cds aas [1..]
-
-expand :: String -> Maybe [(Codon, [AA])]
+  where uncurry3 f = \(x, y, z) -> f x y z
+  
+doIntersect x y = not $ null $ intersect x y
+expand :: String -> Either Error [(Codon, [AA])] 
 expand xs = (zip codons) <$> expandeds
   where
     codons = map Codon $ takeWhile (not . null) $ unfoldr (Just . (splitAt 3)) xs
-    expandeds = sequence $ map expandTriple $ codons 
-   
-expandTriple :: Codon -> Maybe [AA] -- change to Either
-expandTriple (Codon xs) = do
-    degens' <- lookups allBases xs
+    expandeds = sequence $ zipWith tryExpand [1..] codons
+    tryExpand i cdn@(Codon x) = if (not $ null $ intersect x "-N") then Right [] else expandTriple i  cdn
+    
+      
+    
+toEither :: b -> Maybe a -> Either b a
+toEither b a = maybe (Left b) Right a
+-- toEither msg ma = foldr (const . Right) (Left msg) ma
+
+expandTriple :: Int -> Codon -> Either Error [AA] -- change to Either
+expandTriple i (Codon xs) = do
+    degens' <- toEither ("Bases in codon position " ++ show i ++ ", " ++ xs ++ " not found.") $ lookups allBases xs
     let perms = map Codon $ sequence degens'
-    aas' <- lookups codonTable perms
+    aas' <- toEither ("Permutation AA lookup in codon position " ++ show i ++ ", " ++ xs ++ " not found.") $ lookups codonTable perms
     return aas'
  where
   lookups m xs' = sequence $ map (`H.lookup` m) xs' 
   allBases :: H.HashMap Char String
-  allBases = H.fromList (ambig ++ nonAmbig ++ otherBases) 
+  allBases = H.fromList (ambig ++ nonAmbig ++ otherBases)
     where
       nonAmbig   = zipString "ACTG"
       otherBases = zipString "N-"
@@ -120,5 +144,5 @@ codonTable = H.fromList $ zip codons aas
     aas = map char2AA ("KNKNTTTTRSRSIIMIQHQHPPPPRRRRLLLLEDEDAAAAGGGGVVVVZYZYSSSSZCWCLFLF" :: String)
     char2AA x = fromMaybe (error ("Bad AA " ++ show x) ) $ lookup x (zip (map (head . show) [K ..] ) [K ..])
 
-ambigNts = ['R', 'S', 'K', 'V', 'B', 'Y', 'W', 'M', 'H']
+ambigNts = ['M' , 'R' , 'W' , 'S' , 'Y' , 'K' , 'V' , 'H' , 'D' , 'B']
 -- (length aas, length codons) -- these need to be equal 

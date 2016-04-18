@@ -26,7 +26,7 @@ instance ParseField Seperator
       
 deriving instance Read RowType
 instance ParseField RowType
-data Options = Options {   filter :: [RowType] <?> "What show -- Insert, etc.."
+data Options = Options {   rowFilter :: [RowType] <?> "What show -- Insert, etc.."
                          , sep :: First Seperator <?> "Comma or Tab output"
                          , fasta :: FilePath <?> "Input aligned fasta file"
                          , align :: Bool <?> "Align the sequence first?"}
@@ -53,6 +53,7 @@ data Degen  = Insert Codon Index
             | Synonymous AA Index Codon [Index]
             | NonSynonymous [AA] Index Codon [Index]
             | FrameShift Index -- Codon index or AA Index? Should make newtypes
+            | NormalCodon 
               
 -- *** Exception: Data.Csv.Encoding.namedRecordToRecord: header contains name "RowType" which is not present in the named record
 instance ToRecord Degen where
@@ -62,7 +63,8 @@ instance ToRecord Degen where
     (FrameShift idx)                         -> record ["-",     tf idx,       "-", "-",     tf FrameShiftT]
     (StopCodon      aa aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, tf aa, tf  aaI, tf StopCodonT]
     (Synonymous     aa aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, tf aa, tf aaI,  tf SynonymousT]
-    (NonSynonymous aas aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, jf "/" aas,     tf NonSynonymousT]
+    (NonSynonymous aas aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, jf "/" aas, tf aaI,    tf NonSynonymousT]
+    NormalCodon -> error "NormalCodon shouldn't be output"
     where
       tf' = toField
       tf a = toField $ pack (show a)

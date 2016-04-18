@@ -1,16 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where 
-import Lib  (process, run)
+import Lib  (codonTable, process, run)
 import Types (Options, RowType(..))
 import Options.Generic (getRecord)
 
 main :: IO ()
 main = do
   x <- getRecord "Running Program"
-  print (x :: Options)
   run   (x :: Options)
 
-  
 --data GenBankSource = GBFile FilePath | CSVFile FilePath | GBID String
 --  deriving (Show, Generic, ParseRecord)
 
