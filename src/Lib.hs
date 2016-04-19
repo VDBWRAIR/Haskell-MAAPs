@@ -17,10 +17,11 @@ import Bio.Sequence.Fasta
 import Bio.Core.Sequence
 import Options.Generic 
 import Types
+import Data.FixedList hiding (head)
 
 {-
-TODO: Fix formatting somehow
-TODO: Report fasta IDs somehow
+X TODO: Fix formatting somehow
+X TODO: Report fasta IDs somehow
 TODO: More tests better
 TODO: CI
 X TODO: Convert maybes to Either with error descriptions
@@ -51,15 +52,16 @@ X TODO: Row should not be stringly typed
  should codons with multiple degens output NT degen indices?
 -}
 
-type Error = String
-
+type Error = String 
 
 run :: Options -> IO ()
 run opts = do
   recs <- readFasta (unHelpful $ fasta opts)
+  C.putStrLn header' 
   forM_ recs printOne
   where
-    printOne x = either putStrLn (`forM_` C.putStrLn) $ process x
+    printOne x = either putStr (`forM_` C.putStrLn) $ process x
+    header' = B.intercalate "\t" $ toList fields
     
 filterDegens :: [Degen] -> [Degen]
 filterDegens xs = filter (not . isNormal) $ dropStopCodon $ xs
@@ -73,13 +75,14 @@ process :: Sequence -> (Either Error [B.ByteString])
 process s@(Seq _ (SeqData {unSD=seq}) _ ) = do
   xs <- filterDegens <$> getDegens seq'
   let rows = map (record . toList . (fieldList id')) xs
-  return $ [header', "\n", (encodeWith outOptions rows)]
+  return $ [(encodeWith outOptions rows)]
   where
-    -- this gives the sequence ID as the first characters before any space.
+    -- id' gives the sequence ID as the first characters before any space.
     id' = Id $ C.unpack $ unSL $ seqid s
     seq' =  C.unpack seq
     outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
-    header' = B.intercalate "\t" $ toList fields
+toList :: FieldList a -> [a]  
+toList = foldr (:) []
     
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
@@ -96,10 +99,7 @@ toDegen cdn@(Codon nts) aas i
 getDegens :: String -> Either Error [Degen] 
 getDegens s = do
   (cds, aas) <- unzip <$> expand s
-  --let ambigs = filter (\((Codon s), _, _) -> doIntersect s ambigNts) $ zip3 cds aas [1..]
-  --return $ map  (uncurry3 toDegen) ambigs
   return $ zipWith3 toDegen cds aas [1..]
-  where uncurry3 f = \(x, y, z) -> f x y z
   
 doIntersect x y = not $ null $ intersect x y
 expand :: String -> Either Error [(Codon, [AA])] 
@@ -133,10 +133,28 @@ expandTriple i (Codon xs) = do
     
 codonTable :: CodonTable
 codonTable = H.fromList $ zip codons aas
-  where 
+  where
+    -- TODO: why this works and tests
     codons = map Codon $ sequence $ replicate 3 "ACGT" 
     aas = map char2AA ("KNKNTTTTRSRSIIMIQHQHPPPPRRRRLLLLEDEDAAAAGGGGVVVVZYZYSSSSZCWCLFLF" :: String)
     char2AA x = fromMaybe (error ("Bad AA " ++ show x) ) $ lookup x (zip (map (head . show) [K ..] ) [K ..])
 
 ambigNts = ['M' , 'R' , 'W' , 'S' , 'Y' , 'K' , 'V' , 'H' , 'D' , 'B']
 -- (length aas, length codons) -- these need to be equal 
+
+fields :: FieldList B.ByteString
+fields = fromFoldable' $  ["ID", "Codon", "NTPos", "AA", "AAPos", "RowType"]
+
+fieldList :: Id -> Degen -> FieldList Field
+fieldList (Id id') x = case x of
+  (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf InsertT :. Nil
+  (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithNT :. Nil
+  (FrameShift idx)                         -> "-"     :. "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShiftT :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodonT :. Nil
+  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf SynonymousT :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymousT :. Nil
+  NormalCodon -> error "NormalCodon shouldn't be output"
+  where
+      tf' = toField
+      tf a = toField $ pack (show a)
+      jf c xs = toField $ pack (intercalate c $ map show xs) 
