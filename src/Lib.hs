@@ -9,10 +9,12 @@ import GHC.Generics
 import Data.Char (ord)
 import Data.Csv hiding (lookup)
 import Data.Text (Text, pack)
-import Control.Monad (forM_)
+import Control.Monad (forM_, zipWithM_)
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as C
-import Bio.Sequence.Fasta (readFasta, toStr, seqdata)
+--import Bio.Sequence.Fasta (readFasta, toStr, seqdata, seqid)
+import Bio.Sequence.Fasta 
+import Bio.Core.Sequence
 import Options.Generic 
 import Types
 
@@ -55,16 +57,20 @@ type Error = String
 run :: Options -> IO ()
 run opts = do
   recs <- readFasta (unHelpful $ fasta opts)
-  let strs = map (toStr . seqdata) recs
-  forM_ strs printOne
+  --let strs = map (toStr . seqdata) recs
+  --let idsNStrs = map (\s -> (Id $ unSL $ seqid s, toStr $ seqdata s)) recs
+  let idsNStrs = map unpack recs
+  forM_ idsNStrs $ uncurry printOne
   where
-    printOne x = either putStrLn (`forM_` C.putStrLn) $ process x
+    unpack (Seq (SeqLabel {unSL=id'}) (SeqData {unSD=seq'}) _ ) = (Id $ C.unpack id', C.unpack seq')
+    printOne id' x = either putStrLn (`forM_` C.putStrLn) $ process id' x
 
-process :: String -> (Either Error [B.ByteString])
-process s = do
+process :: Id -> String -> (Either Error [B.ByteString])
+process id' s = do
   xs <- filter (not . isNormal) <$> dropStopCodon <$> getDegens s
   --return $ B.concat [header', "\n", (encodeWith outOptions xs)]
-  return $ [header', "\n", (encodeWith outOptions xs)]
+  let rows = map (record . toList . (fieldList id')) xs
+  return $ [header', "\n", (encodeWith outOptions rows)]
   where
     outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
     header' = B.intercalate "\t" $ toList fields
@@ -88,7 +94,7 @@ toDegen cdn@(Codon nts) aas i
 someFunc = do
   print $ expand  "ATR" -- "Isoleucine", -- "Methionine Start",
   --B.putStrLn $ fromMaybe (error "Error!") $ process "ATR"
-  either error print $ process "ATR"
+  either error print $ process (Id "foo") "ATR"
   print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
   print $ expand  "zzz"  -- Nothing, not in `degen` list
   print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3

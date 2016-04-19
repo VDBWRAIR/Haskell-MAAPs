@@ -60,23 +60,23 @@ data Degen  = Insert Codon Index
               
 -- *** Exception: Data.Csv.Encoding.namedRecordToRecord: header contains name "RowType" which is not present in the named record
 
-type FieldList = FixedList5 
-instance ToRecord Degen where
-  toRecord = record . toList . fieldList
-  
+type FieldList = FixedList6
+--instance ToRecord Degen where
+--  toRecord = record . toList . fieldList
+toList :: FieldList a -> [a]  
 toList = foldr (:) []
-  
+newtype Id = Id String 
 fields :: FieldList B.ByteString
-fields = fromFoldable' $  ["Codon", "NTPos", "AA", "AAPos", "RowType"]
+fields = fromFoldable' $  ["ID", "Codon", "NTPos", "AA", "AAPos", "RowType"]
 
-fieldList :: Degen -> FieldList Field
-fieldList x = case x of
-  (Insert                (Codon nts)  idx) -> tf' nts :. tf idx       :. "-"        :. "-"     :. tf InsertT :. Nil
-  (WithN                 (Codon nts)  idx) -> tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithNT :. Nil
-  (FrameShift idx)                         -> "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShiftT :. Nil
-  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodonT :. Nil
-  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf SynonymousT :. Nil
-  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymousT :. Nil
+fieldList :: Id -> Degen -> FieldList Field
+fieldList (Id id') x = case x of
+  (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf InsertT :. Nil
+  (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithNT :. Nil
+  (FrameShift idx)                         -> "-"     :. "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShiftT :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodonT :. Nil
+  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf SynonymousT :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymousT :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
   where
       tf' = toField
