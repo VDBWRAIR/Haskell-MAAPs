@@ -16,11 +16,11 @@ import Bio.Sequence.Fasta (readFasta, toStr, seqdata)
 import Options.Generic 
 import Types
 
- 
-
 {-
 TODO: Fix formatting somehow
 TODO: Report fasta IDs somehow
+TODO: More tests better
+TODO: CI
 X TODO: Convert maybes to Either with error descriptions
 X TODO: Row should not be stringly typed
 
@@ -51,6 +51,7 @@ X TODO: Row should not be stringly typed
 
 type Error = String
 
+
 run :: Options -> IO ()
 run opts = do
   recs <- readFasta (unHelpful $ fasta opts)
@@ -66,8 +67,7 @@ process s = do
   return $ [header', "\n", (encodeWith outOptions xs)]
   where
     outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
-    header' = B.intercalate "\t" fields
-    fields = ["Codon", "NTPos", "AA", "AAPos", "RowType"]
+    header' = B.intercalate "\t" $ toList fields
     isNormal NormalCodon = True
     isNormal _           = False
     dropStopCodon ((StopCodon _ _ _ _ ):[]) = []

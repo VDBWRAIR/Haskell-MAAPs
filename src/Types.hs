@@ -11,6 +11,9 @@ import Data.Text (Text, pack)
 import GHC.Generics
 import Data.List (intercalate)
 import Options.Generic
+import Data.FixedList 
+import qualified Data.ByteString.Lazy as B
+import Data.ByteString.Internal as I
 
 type Index = Int
 newtype CodonIndex = CodonIndex Int -- make this part of codon?
@@ -56,16 +59,26 @@ data Degen  = Insert Codon Index
             | NormalCodon 
               
 -- *** Exception: Data.Csv.Encoding.namedRecordToRecord: header contains name "RowType" which is not present in the named record
+
+type FieldList = FixedList5 
 instance ToRecord Degen where
-  toRecord x = case x of
-    (Insert                (Codon nts)  idx) -> record [tf' nts, tf idx,       "-", "-",     tf InsertT]
-    (WithN                 (Codon nts)  idx) -> record [tf' nts, tf idx,       "-", "-",     tf WithNT]
-    (FrameShift idx)                         -> record ["-",     tf idx,       "-", "-",     tf FrameShiftT]
-    (StopCodon      aa aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, tf aa, tf  aaI, tf StopCodonT]
-    (Synonymous     aa aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, tf aa, tf aaI,  tf SynonymousT]
-    (NonSynonymous aas aaI (Codon nts)  ntI) -> record [tf' nts, jf "," ntI, jf "/" aas, tf aaI,    tf NonSynonymousT]
-    NormalCodon -> error "NormalCodon shouldn't be output"
-    where
+  toRecord = record . toList . fieldList
+  
+toList = foldr (:) []
+  
+fields :: FieldList B.ByteString
+fields = fromFoldable' $  ["Codon", "NTPos", "AA", "AAPos", "RowType"]
+
+fieldList :: Degen -> FieldList Field
+fieldList x = case x of
+  (Insert                (Codon nts)  idx) -> tf' nts :. tf idx       :. "-"        :. "-"     :. tf InsertT :. Nil
+  (WithN                 (Codon nts)  idx) -> tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithNT :. Nil
+  (FrameShift idx)                         -> "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShiftT :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodonT :. Nil
+  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf SynonymousT :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymousT :. Nil
+  NormalCodon -> error "NormalCodon shouldn't be output"
+  where
       tf' = toField
       tf a = toField $ pack (show a)
       jf c xs = toField $ pack (intercalate c $ map show xs)
