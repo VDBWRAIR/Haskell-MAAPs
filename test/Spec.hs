@@ -100,3 +100,11 @@ prop_bad_nts_fail = expand "zzz" == Nothing
 
 bad_char_count_fails x = expand x == Nothing
   where types = (x :: String) suchThat (((length x) `mod` 3) /= 0)
+
+--someFunc = do
+--  print $ expand  "ATR" -- "Isoleucine", -- "Methionine Start",
+--  --B.putStrLn $ fromMaybe (error "Error!") $ process "ATR"
+--  --either error print $ process "ATR"
+--  print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
+--  print $ expand  "zzz"  -- Nothing, not in `degen` list
+--  print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3
