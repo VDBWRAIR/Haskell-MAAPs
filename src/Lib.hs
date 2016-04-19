@@ -57,28 +57,30 @@ type Error = String
 run :: Options -> IO ()
 run opts = do
   recs <- readFasta (unHelpful $ fasta opts)
-  --let strs = map (toStr . seqdata) recs
-  --let idsNStrs = map (\s -> (Id $ unSL $ seqid s, toStr $ seqdata s)) recs
-  let idsNStrs = map unpack recs
-  forM_ idsNStrs $ uncurry printOne
+  forM_ recs printOne
   where
-    unpack (Seq (SeqLabel {unSL=id'}) (SeqData {unSD=seq'}) _ ) = (Id $ C.unpack id', C.unpack seq')
-    printOne id' x = either putStrLn (`forM_` C.putStrLn) $ process id' x
-
-process :: Id -> String -> (Either Error [B.ByteString])
-process id' s = do
-  xs <- filter (not . isNormal) <$> dropStopCodon <$> getDegens s
-  --return $ B.concat [header', "\n", (encodeWith outOptions xs)]
-  let rows = map (record . toList . (fieldList id')) xs
-  return $ [header', "\n", (encodeWith outOptions rows)]
+    printOne x = either putStrLn (`forM_` C.putStrLn) $ process x
+    
+filterDegens :: [Degen] -> [Degen]
+filterDegens xs = filter (not . isNormal) $ dropStopCodon $ xs
   where
-    outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
-    header' = B.intercalate "\t" $ toList fields
     isNormal NormalCodon = True
     isNormal _           = False
     dropStopCodon ((StopCodon _ _ _ _ ):[]) = []
     dropStopCodon (x:xs)                    = x : dropStopCodon xs
 
+process :: Sequence -> (Either Error [B.ByteString])
+process s@(Seq _ (SeqData {unSD=seq}) _ ) = do
+  xs <- filterDegens <$> getDegens seq'
+  let rows = map (record . toList . (fieldList id')) xs
+  return $ [header', "\n", (encodeWith outOptions rows)]
+  where
+    -- this gives the sequence ID as the first characters before any space.
+    id' = Id $ C.unpack $ unSL $ seqid s
+    seq' =  C.unpack seq
+    outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
+    header' = B.intercalate "\t" $ toList fields
+    
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
   | '-' `elem` nts = Insert cdn i
@@ -90,18 +92,6 @@ toDegen cdn@(Codon nts) aas i
        aas   ->   NonSynonymous aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
-
-someFunc = do
-  print $ expand  "ATR" -- "Isoleucine", -- "Methionine Start",
-  --B.putStrLn $ fromMaybe (error "Error!") $ process "ATR"
-  either error print $ process (Id "foo") "ATR"
-  print $ expand  "ATC"  -- returns its normal AA (synonymous, without degen)
-  print $ expand  "zzz"  -- Nothing, not in `degen` list
-  print $ expand  "ATRYCSA"  -- Nothing, not divisible by 3
-  
-toCodon :: String -> Maybe Codon
-toCodon s@(x:y:z:[]) = Just  $ Codon s
-toCodon s            = Nothing
 
 getDegens :: String -> Either Error [Degen] 
 getDegens s = do
@@ -117,9 +107,7 @@ expand xs = (zip codons) <$> expandeds
   where
     codons = map Codon $ takeWhile (not . null) $ unfoldr (Just . (splitAt 3)) xs
     expandeds = sequence $ zipWith tryExpand [1..] codons
-    tryExpand i cdn@(Codon x) = if (not $ null $ intersect x "-N") then Right [] else expandTriple i  cdn
-    
-      
+    tryExpand i cdn@(Codon x) = if (not $ null $ intersect x "-N") then Right [] else expandTriple i  cdn 
     
 toEither :: b -> Maybe a -> Either b a
 toEither b a = maybe (Left b) Right a
