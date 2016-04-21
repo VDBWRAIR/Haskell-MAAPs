@@ -28,6 +28,7 @@ library
                      , biofasta
                      , biocore
                      , fixed-list
+                     , QuickCheck
   default-language:    Haskell2010
 
 executable Maaps-exe

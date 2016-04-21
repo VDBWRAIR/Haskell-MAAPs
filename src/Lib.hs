@@ -6,7 +6,7 @@ import Data.Hashable
 import Data.Maybe (fromMaybe)
 import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate, intersect)
 import GHC.Generics
-import Data.Char (ord)
+import Data.Char (ord, toUpper)
 import Data.Csv hiding (lookup)
 import Data.Text (Text, pack)
 import Control.Monad (forM_, zipWithM_)
@@ -73,7 +73,7 @@ filterDegens xs = filter (not . isNormal) $ dropStopCodon $ xs
 
 process :: Sequence -> (Either Error [B.ByteString])
 process s@(Seq _ (SeqData {unSD=seq}) _ ) = do
-  xs <- filterDegens <$> getDegens seq'
+  xs <- filterDegens <$> getDegens (map toUpper seq')
   let rows = map (record . toList . (fieldList id')) xs
   return $ [(encodeWith outOptions rows)]
   where

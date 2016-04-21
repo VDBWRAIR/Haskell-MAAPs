@@ -61,7 +61,9 @@ data Degen  = Insert Codon Index
             | Synonymous AA Index Codon [Index]
             | NonSynonymous [AA] Index Codon [Index]
             | FrameShift Index -- Codon index or AA Index? Should make newtypes
-            | NormalCodon 
+            | NormalCodon
+  deriving (Show, Eq)
+
 -- type for the csv row list              
 type FieldList = FixedList6
 

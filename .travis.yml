@@ -132,3 +132,10 @@ script:
         (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
       ;;
   esac
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/733ce26f5af2ec9f2503
+    on_success: change
+    on_failure: always
+    on_start: never
