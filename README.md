@@ -12,11 +12,11 @@ Maaps currently does not support gene-coordinate annotations.
 
 ### Output
 ```
-ID	  Codon	NTPos   	AA	 AAPos	 RowType
-Den4	TAA	   -	   !	  3388	 Stop_Codon
-Den4	TAG	   -	   !	  3414	 Stop_Codon
-Den4	TAA	   -	   !	  3422	 Stop_Codon
-Den4	TAG	   -	   !	  3473	 Stop_Codon
+ID	  Codon	NTPos  	AA	 AAPos	 RowType
+Den4	TAA	   -	  !	  3388	 Stop_Codon
+Den4	TAG	   -	  !	  3414	 Stop_Codon
+Den4	TAA	   -	  !	  3422	 Stop_Codon
+Den4	TAG	   -	  !	  3473	 Stop_Codon
 
 2055	TGA    -	  !    121	Stop_Codon
 2055	RAC	 1927 	N/D  643	Non_Synonymous
