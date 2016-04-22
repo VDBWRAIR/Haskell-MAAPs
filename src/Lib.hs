@@ -64,8 +64,10 @@ run opts = do
     header' = B.intercalate "\t" $ toList fields
     
 filterDegens :: [Degen] -> [Degen]
-filterDegens xs = filter (not . isNormal) $ dropStopCodon $ xs
+filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropStopCodon $ xs
   where
+    isSynonymous (Synonymous _ _ _ _) = True
+    isSynonymous _                    = False
     isNormal NormalCodon = True
     isNormal _           = False
     dropStopCodon ((StopCodon _ _ _ _ ):[]) = []
@@ -127,7 +129,7 @@ expandTriple i (Codon xs) = do
     where
       nonAmbig   = zipString "ACTG"
       otherBases = zipString "N-"
-      ambigExp   = ["AG", "GC", "TG", "ACG", "CGT", "CT", "AT", "CA", "ACT"]
+      ambigExp   = map snd ambigTable
       ambig      = zip ambigNts ambigExp
       zipString :: String -> [(Char, String)]
       zipString xs = zip xs $ map (:[]) xs
@@ -140,7 +142,6 @@ codonTable = H.fromList $ zip codons aas
     aas = map char2AA ("KNKNTTTTRSRSIIMIQHQHPPPPRRRRLLLLEDEDAAAAGGGGVVVVZYZYSSSSZCWCLFLF" :: String)
     char2AA x = fromMaybe (error ("Bad AA " ++ show x) ) $ lookup x (zip (map (head . show) [K ..] ) [K ..])
 
-ambigNts = ['M' , 'R' , 'W' , 'S' , 'Y' , 'K' , 'V' , 'H' , 'D' , 'B']
 -- (length aas, length codons) -- these need to be equal 
 
 fields :: FieldList B.ByteString
@@ -158,3 +159,19 @@ fieldList (Id id') x = case x of
       tf' = toField
       tf a = toField $ pack (show a)
       jf c xs = toField $ pack (intercalate c $ map show xs) 
+
+
+
+ambigNts = map fst ambigTable
+ambigTable = [('R', "AG"),
+              ('Y', "CT"),
+              ('S', "GC"),
+              ('W', "AT"),
+              ('K', "GT"),
+              ('M', "AC"),
+              ('B', "CGT"),
+              ('D', "AGT"),
+              ('H', "ACT"),
+              ('V', "ACG")]
+--ambigNts = ['M' ,  'R' , 'W' , 'S' ,  'Y' , 'K' , 'V' , 'H' , 'D' , 'B'] 
+--ambigExp = ["AG", "GC", "TG", "ACG", "CGT", "CT", "AT", "CA", "ACT"]
