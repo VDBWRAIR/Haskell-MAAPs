@@ -152,9 +152,9 @@ fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
   (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
   (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
-  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
-  (Synonymous'     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
-  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf "," ntI :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
+  (Synonymous'     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf "," ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf "," ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
   where 
       aaf = toField . pack . aaShow 
@@ -162,8 +162,6 @@ fieldList (Id id') x = case x of
       tf a = toField $ pack (show a)
       jf c xs = toField $ pack (intercalate c $ map show xs) 
       aajf c xs = toField $ pack (intercalate c $ map aaShow xs) 
-
-
 
 ambigNts = map fst ambigTable
 ambigTable = [('R', "AG"),
