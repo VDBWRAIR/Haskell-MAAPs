@@ -97,7 +97,7 @@ toDegen cdn@(Codon nts) aas i
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
        (aa:[]) | (not $ doIntersect nts ambigNts) -> NormalCodon 
        (aas)   | ((length $ nub $ aas) == 1) -> Synonymous' (head aas)  i cdn  ntIdxs
-       aas   ->   NonSynonymous aas i cdn  ntIdxs
+       aas   ->   NonSynonymous (nub aas) i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
 
