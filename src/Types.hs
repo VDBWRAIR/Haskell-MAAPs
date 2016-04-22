@@ -52,13 +52,13 @@ instance Hashable Codon where
   
 type CodonTable = H.HashMap Codon AA
 
-data RowType = Is_Gap | Has_N | Stop_Codon | Synonymous' | Non_Synonymous
+data RowType = Is_Gap | Has_N | Stop_Codon | Synonymous | Non_Synonymous
   deriving (Show, Eq, Generic)
 
 data Degen  = Insert Codon Index
             | WithN Codon Index
             | StopCodon AA Index Codon [Index]
-            | Synonymous AA Index Codon [Index]
+            | Synonymous' AA Index Codon [Index]
             | NonSynonymous [AA] Index Codon [Index] -- Codon index or AA Index? Should make newtypes
             | NormalCodon
   deriving (Show, Eq)

@@ -66,7 +66,7 @@ run opts = do
 filterDegens :: [Degen] -> [Degen]
 filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropStopCodon $ xs
   where
-    isSynonymous (Synonymous _ _ _ _) = True
+    isSynonymous (Synonymous' _ _ _ _) = True
     isSynonymous _                    = False
     isNormal NormalCodon = True
     isNormal _           = False
@@ -94,7 +94,7 @@ toDegen cdn@(Codon nts) aas i
        ([])  ->   error $ "Invalid state; uncaught bad trasnlation at index " ++ show i ++ "codon " ++ nts
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
        (aa:[]) | (not $ doIntersect nts ambigNts) -> NormalCodon 
-       (aas)   | ((length $ nub $ aas) == 1) -> Synonymous (head aas)  i cdn  ntIdxs
+       (aas)   | ((length $ nub $ aas) == 1) -> Synonymous' (head aas)  i cdn  ntIdxs
        aas   ->   NonSynonymous aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
@@ -152,7 +152,7 @@ fieldList (Id id') x = case x of
   (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
   (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
   (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf Stop_Codon :. Nil
-  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf Synonymous' :. Nil
+  (Synonymous'     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf Synonymous :. Nil
   (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
   where
