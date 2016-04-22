@@ -52,7 +52,7 @@ instance Hashable Codon where
   
 type CodonTable = H.HashMap Codon AA
 
-data RowType = Gap' | WithN' | StopCodon' | Synonymous' | NonSynonymous'
+data RowType = Is_Gap | Has_N | Stop_Codon | Synonymous' | Non_Synonymous
   deriving (Show, Eq, Generic)
 
 data Degen  = Insert Codon Index
