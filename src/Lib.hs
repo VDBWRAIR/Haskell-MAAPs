@@ -70,6 +70,7 @@ filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropSt
     isSynonymous _                    = False
     isNormal NormalCodon = True
     isNormal _           = False
+    dropStopCodon [] = [] -- this pattern suggests that there is no stop codon!
     dropStopCodon ((StopCodon _ _ _ _ ):[]) = []
     dropStopCodon (x:xs)                    = x : dropStopCodon xs
 
@@ -151,14 +152,16 @@ fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
   (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
   (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
-  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf Stop_Codon :. Nil
-  (Synonymous'     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf Synonymous :. Nil
-  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
+  (Synonymous'     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
-  where
+  where 
+      aaf = toField . pack . aaShow 
       tf' = toField
       tf a = toField $ pack (show a)
       jf c xs = toField $ pack (intercalate c $ map show xs) 
+      aajf c xs = toField $ pack (intercalate c $ map aaShow xs) 
 
 
 

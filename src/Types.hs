@@ -44,6 +44,9 @@ newtype Id = Id String
 data AA = K | N | T | R | S | I | M | Q | H | P | L | E | D | A | G | V | Z | Y | C | W | F
   deriving (Show, Eq, Enum, Generic)
 
+aaShow Z = "!"
+aaShow x = show x
+
 newtype Codon = Codon String
   deriving (Eq, Show)
 
