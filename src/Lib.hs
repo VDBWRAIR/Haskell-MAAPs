@@ -75,15 +75,16 @@ filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropSt
     dropStopCodon (x:xs)                    = x : dropStopCodon xs
 
 process :: Sequence -> (Either Error [B.ByteString])
-process s@(Seq _ (SeqData {unSD=seq}) _ ) = do
+process s@(Seq header' (SeqData {unSD=seq}) _ ) = do
   xs <- filterDegens <$> getDegens (map toUpper seq')
   let rows = map (record . toList . (fieldList id')) xs
   return $ [(encodeWith outOptions rows)]
   where
     -- id' gives the sequence ID as the first characters before any space.
-    id' = Id $ C.unpack $ unSL $ seqid s
+    id'  =  Id $  takeWhile (not . (`elem` [' ', '_', '-', '/'])) $ C.unpack $ unSL $ header'
     seq' =  C.unpack seq
-    outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')} 
+    outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')}
+    
 toList :: FieldList a -> [a]  
 toList = foldr (:) []
     
