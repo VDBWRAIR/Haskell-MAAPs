@@ -4,7 +4,7 @@ module Lib where
 import qualified Data.HashMap.Strict as H
 import Data.Hashable 
 import Data.Maybe (fromMaybe)
-import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate, intersect)
+import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate, intersect, nub)
 import GHC.Generics
 import Data.Char (ord, toUpper)
 import Data.Csv hiding (lookup)
@@ -17,7 +17,7 @@ import Bio.Sequence.Fasta
 import Bio.Core.Sequence
 import Options.Generic 
 import Types
-import Data.FixedList hiding (head)
+import Data.FixedList hiding (length, head)
 
 {-
 X TODO: Fix formatting somehow
@@ -91,7 +91,8 @@ toDegen cdn@(Codon nts) aas i
   | otherwise = case aas of
        ([])  ->   FrameShift    i 
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
-       (aa:[]) -> if (not $ doIntersect nts ambigNts) then NormalCodon else Synonymous    aa  i cdn  ntIdxs
+       (aa:[]) | (not $ doIntersect nts ambigNts) -> NormalCodon 
+       (aas)   | ((length $ nub $ aas) == 1) -> Synonymous (head aas)  i cdn  ntIdxs
        aas   ->   NonSynonymous aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
