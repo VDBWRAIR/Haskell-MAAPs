@@ -89,7 +89,7 @@ toDegen cdn@(Codon nts) aas i
   | '-' `elem` nts = Insert cdn i
   | 'N' `elem` nts = WithN  cdn i
   | otherwise = case aas of
-       ([])  ->   FrameShift    i 
+       ([])  ->   error $ "Invalid state; uncaught bad trasnlation at index " ++ show i ++ "codon " ++ nts
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
        (aa:[]) | (not $ doIntersect nts ambigNts) -> NormalCodon 
        (aas)   | ((length $ nub $ aas) == 1) -> Synonymous (head aas)  i cdn  ntIdxs
@@ -150,7 +150,6 @@ fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
   (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Gap' :. Nil
   (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithN' :. Nil
-  (FrameShift idx)                         -> "-"     :. "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShift' :. Nil
   (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodon' :. Nil
   (Synonymous     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf Synonymous' :. Nil
   (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymous' :. Nil
