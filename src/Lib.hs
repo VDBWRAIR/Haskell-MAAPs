@@ -96,15 +96,15 @@ toDegen cdn@(Codon nts) aas i
        ([])  ->   error $ "Invalid state; uncaught bad trasnlation at index " ++ show i ++ "codon " ++ nts
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
        (aa:[]) | (not $ doIntersect nts ambigNts) -> NormalCodon 
-       (aas)   | ((length $ nub $ aas) == 1) -> Synonymous' (head aas)  i cdn  ntIdxs
-       aas   ->   NonSynonymous (nub aas) i cdn  ntIdxs
+       (aa:[])    -> Synonymous' aa  i cdn  ntIdxs
+       aas   ->   NonSynonymous  aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
 
 getDegens :: String -> Either Error [Degen] 
 getDegens s = do
   (cds, aas) <- unzip <$> expand s
-  return $ zipWith3 toDegen cds aas [1..]
+  return $ zipWith3 toDegen cds (nub aas) [1..]
   
 doIntersect x y = not $ null $ intersect x y
 expand :: String -> Either Error [(Codon, [AA])] 
