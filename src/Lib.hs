@@ -148,12 +148,12 @@ fields = fromFoldable' $  ["ID", "Codon", "NTPos", "AA", "AAPos", "RowType"]
 
 fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
-  (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf InsertT :. Nil
-  (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithNT :. Nil
-  (FrameShift idx)                         -> "-"     :. "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShiftT :. Nil
-  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodonT :. Nil
-  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf SynonymousT :. Nil
-  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymousT :. Nil
+  (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Gap' :. Nil
+  (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf WithN' :. Nil
+  (FrameShift idx)                         -> "-"     :. "-"     :. tf idx       :. "-"        :. "-"     :. tf FrameShift' :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf  aaI :. tf StopCodon' :. Nil
+  (Synonymous     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. tf aa      :. tf aaI  :. tf Synonymous' :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf " :." ntI :. jf "/" aas :. tf aaI  :. tf NonSynonymous' :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
   where
       tf' = toField
