@@ -53,16 +53,23 @@ X TODO: Row should not be stringly typed
 -}
 
 type Error = String 
-
+{- For every record in the fasta file found in opts, print to stdout the result CSV
+followed by newline. -}
 run :: Options -> IO ()
 run opts = do
-  recs <- readFasta (unHelpful $ fasta opts)
+  recs <- readFasta fastaFile
   C.putStrLn header' 
   forM_ recs printOne
   where
+    fastaFile = unHelpful $ fasta opts -- unwrap the help-annotated type
     printOne x = either putStr (`forM_` C.putStrLn) $ process x
     header' = B.intercalate "\t" $ toList fields
-    
+
+{- | remove "Degens" that are synonymous or normal.
+Also removes the stop codons that are at the end--as these are legitimate stops and shouldn't be marked.
+>>> filterDegens [NormalCodon, WithN (Codon "TNT") 2, StopCodon Z 3 (Codon "ATC") []]
+[WithN (Codon "TNT") 2]
+-}
 filterDegens :: [Degen] -> [Degen]
 filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropStopCodon $ xs
   where
@@ -73,21 +80,33 @@ filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropSt
     dropStopCodon [] = [] -- this pattern suggests that there is no stop codon!
     dropStopCodon ((StopCodon _ _ _ _ ):[]) = []
     dropStopCodon (x:xs)                    = x : dropStopCodon xs
-
+    
+{- pull out the ids for each sequence by removing content after the seperator.
+create the CSV list for each degen and encode. -}
 process :: Sequence -> (Either Error [B.ByteString])
 process s@(Seq header' (SeqData {unSD=seq}) _ ) = do
   xs <- filterDegens <$> getDegens (map toUpper seq')
   let rows = map (record . toList . (fieldList id')) xs
   return $ [(encodeWith outOptions rows)]
   where
-    -- id' gives the sequence ID as the first characters before any space.
     id'  =  Id $  takeWhile (not . (`elem` [' ', '_', '-', '/'])) $ C.unpack $ unSL $ header'
     seq' =  C.unpack seq
     outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')}
+    getDegens :: String -> Either Error [Degen] 
+    getDegens s = do
+      (cds, aas) <- unzip <$> expand s
+      return $ zipWith3 toDegen cds (nub aas) [1..]
     
 toList :: FieldList a -> [a]  
 toList = foldr (:) []
-    
+
+-- | convert the codon and AA information into the Degen type, representing wether it's an insert, contains an N, etc.
+-- >>> toDegen (Codon "ATC") [F] 1
+-- NormalCodon
+-- >>> toDegen (Codon "AAA") [Z] 3
+-- StopCodon Z 3 (Codon "AAA") []
+-- >>> toDegen (Codon "TNT") [] 5
+-- WithN (Codon "TNT") 5
 toDegen :: Codon -> [AA] -> Index -> Degen
 toDegen cdn@(Codon nts) aas i
   | '-' `elem` nts = Insert cdn i
@@ -100,27 +119,40 @@ toDegen cdn@(Codon nts) aas i
        aas   ->   NonSynonymous  aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
+    doIntersect x y = not $ null $ intersect x y
 
-getDegens :: String -> Either Error [Degen] 
-getDegens s = do
-  (cds, aas) <- unzip <$> expand s
-  return $ zipWith3 toDegen cds (nub aas) [1..]
-  
-doIntersect x y = not $ null $ intersect x y
+
+-- | Expand a string of arbitrary size into a the Codons and amino acids the string represents after expanding
+-- degenerate nucleotides and seeeing what is coded for. Splits the string up into triples and maps `expandTriple` over it.
+-- >>> expand "SAGTAA" 
+-- Right [(Codon "SAG",[E,Q]),(Codon "TAA",[Z])]
+--
+-- Expects the string to divide evenly into triplets, and for every base to be a valid nucleotide or gap (represtented as '-')
+-- >>> expand "AGTCC"
+-- Left "Permutation AA lookup in codon position 2, CC not found."
+-- >>> expand "CCzCC"
+-- Left "Bases in codon position 1, CCz not found." 
+--
+-- codons with gaps come back as codons which code to nothing.
+-- >>> expand "CC-ATG"
+-- Right [(Codon "CC-",[]),(Codon "ATG",[M])] 
 expand :: String -> Either Error [(Codon, [AA])] 
 expand xs = (zip codons) <$> expandeds
   where
     codons = map Codon $ takeWhile (not . null) $ unfoldr (Just . (splitAt 3)) xs
     expandeds = sequence $ zipWith tryExpand [1..] codons
     tryExpand i cdn@(Codon x) = if (not $ null $ intersect x "-N") then Right [] else expandTriple i  cdn 
-    
+
 toEither :: b -> Maybe a -> Either b a
 toEither b a = maybe (Left b) Right a
--- toEither msg ma = foldr (const . Right) (Left msg) ma
 
-expandTriple :: Int -> Codon -> Either Error [AA] -- change to Either
+-- Given the index of the first NT and the codon, expand the degenerate bases and return all possible
+-- amino acids the codon could code to, or an error message.
+expandTriple :: Int -> Codon -> Either Error [AA]
 expandTriple i (Codon xs) = do
     degens' <- toEither ("Bases in codon position " ++ show i ++ ", " ++ xs ++ " not found.") $ lookups allBases xs
+    -- sequence here is used as a sort of ordered permutation,
+    -- e.g. sequence ["A","ATG"] == ["AA","AT","AG"] 
     let perms = map Codon $ sequence degens'
     aas' <- toEither ("Permutation AA lookup in codon position " ++ show i ++ ", " ++ xs ++ " not found.") $ lookups codonTable perms
     return aas'
@@ -136,7 +168,11 @@ expandTriple i (Codon xs) = do
       zipString :: String -> [(Char, String)]
       zipString xs = zip xs $ map (:[]) xs
     
-codonTable :: CodonTable
+{- | table from codons to Amino Acids.
+>>> H.lookup (Codon "TTT") codonTable
+Just F
+-}
+codonTable :: H.HashMap Codon AA
 codonTable = H.fromList $ zip codons aas
   where
     -- TODO: why this works and tests
@@ -149,6 +185,7 @@ codonTable = H.fromList $ zip codons aas
 fields :: FieldList B.ByteString
 fields = fromFoldable' $  ["ID", "Codon", "NTPos", "AA", "AAPos", "RowType"]
 
+-- Convert degen information into a list of "Fields" (wrapped text) for the CSV decoder to consume
 fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
   (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
@@ -165,6 +202,11 @@ fieldList (Id id') x = case x of
       aajf c xs = toField $ pack (intercalate c $ map aaShow xs) 
 
 ambigNts = map fst ambigTable
+
+{- | table from nucleotide to the bases it represents if its ambiguities are "expanded."
+>>> lookup 'R' ambigTable
+Just "AG"
+-}
 ambigTable = [('R', "AG"),
               ('Y', "CT"),
               ('S', "GC"),

@@ -7,5 +7,5 @@ import Options.Generic (getRecord)
 main :: IO ()
 main = do
   x <- getRecord "Running Program"
-  run   (x :: Options)
+  run (x :: Options)
 
