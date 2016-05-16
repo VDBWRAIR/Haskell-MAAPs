@@ -3,11 +3,20 @@ module Tables
 
 import qualified Data.Map.Strict as H
 
+{- | table from nucleotide to the bases it represents if its ambiguities are "expanded."
+ bases which are not ambiguous expand to themselves. e.g.
+>>> H.lookup 'A' degens 
+Just "A"
+-}
+degens = H.fromList  [('A', "A"), ('C', "C"), ('G', "G"), ('T', "T"), ('R', "AG"), ('Y',"CT"), ('S', "GC"), ('W', "AT")]
 
-degens = H.fromList  [('A', "A"), ('C', "C"), ('G', "G"), ('T', "T"), ('R', "AG"), ('Y',"CT"), ('S', "GC"), ('W', "AT")] 
 type CodonTable = H.Map String String
 
 codonTable :: CodonTable
+{- | table from codons to Amino Acids.
+>>> H.lookup "TTT" codonTable
+Just "Phenylalanine"
+-}
 codonTable = foldr f (H.empty) $ zip codons aas
   where
     f :: ([String], String) -> CodonTable -> CodonTable
