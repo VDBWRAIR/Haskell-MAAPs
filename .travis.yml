@@ -126,6 +126,8 @@ script:
       cabal build
       cabal check || [ "$CABALVER" == "1.16" ]
       cabal test
+      stack install doctest
+      stack exec doctest src/Lib.hs
       cabal sdist
       cabal copy
       SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz && \
