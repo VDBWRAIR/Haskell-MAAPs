@@ -50,3 +50,9 @@ The following development features are planned:
   * hpc reporting
   * hlint reporitng
   * liquid tags
+
+### Development
+Run tests:
+```bash
+$ stack exec doctest src
+``` 
