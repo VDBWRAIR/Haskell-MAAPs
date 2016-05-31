@@ -7,7 +7,7 @@ maaps --fasta examples/Den4_MAAPS_TestData16.fasta
 ```
 
 Maaps currently only takes one argument, `--fasta`. All other arguments are ignored.
-Maaps expects a pre-aligned fasta file. 
+Maaps expects a pre-aligned fasta file. Because the sequences are expected to be in a valid reading frame, all sequences must be of lenght divisible by 3. 
 Maaps currently does not support gene-coordinate annotations.
 
 ### Output
