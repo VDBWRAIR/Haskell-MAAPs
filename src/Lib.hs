@@ -6,7 +6,7 @@ import Data.Hashable
 import Data.Maybe (fromMaybe)
 import Data.List (unfoldr, splitAt, findIndices, intersperse, intercalate, intersect, nub)
 import GHC.Generics
-import Data.Char (ord, toUpper)
+import Data.Char (ord, toUpper, isSpace)
 import Data.Csv hiding (lookup)
 import Data.Text (Text, pack)
 import Control.Monad (forM_, zipWithM_)
@@ -189,14 +189,14 @@ fields = fromFoldable' $  ["ID", "Codon", "NTPos", "AA", "AAPos", "RowType"]
 -- Convert degen information into a list of "Fields" (wrapped text) for the CSV decoder to consume
 fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
-  (Insert                (Codon nts)  idx)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
-  (WithN                 (Codon nts)  idx)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
-  (StopCodon      aa aaI (Codon nts)  ntI)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. "-"          :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
-  (Synonymous'     aa aaI (Codon nts)  ntI) ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. jf "," ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
-  (NonSynonymous aas aaI (Codon nts)  ntI)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. jf "," ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
+  (Insert                (Codon nts)  idx)  ->  (tf' $ replace' isSpace '_' id') :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
+  (WithN                 (Codon nts)  idx)  ->  (tf' $ replace' isSpace '_' id') :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI)  ->  (tf' $ replace' isSpace '_' id') :. tf' nts :. "-"          :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
+  (Synonymous'     aa aaI (Codon nts)  ntI) ->  (tf' $ replace' isSpace '_' id') :. tf' nts :. jf "," ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI)  ->  (tf' $ replace' isSpace '_' id') :. tf' nts :. jf "," ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
   where 
-      replace' a b = map (\x -> if (a == x) then b else x)
+      replace' p y xs = map (\x -> if (p x) then y else x) xs
       aaf = toField . pack . aaShow 
       tf' = toField
       tf a = toField $ pack (show a)
