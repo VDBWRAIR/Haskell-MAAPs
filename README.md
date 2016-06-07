@@ -6,9 +6,11 @@ MAAPs
 maaps --fasta examples/Den4_MAAPS_TestData16.fasta
 ```
 
+Maaps is a program that identifies mixed amino acid positions within an alignment of sequences and where they are located both in terms of nucleotide and amino acid position.
 Maaps currently only takes one argument, `--fasta`. All other arguments are ignored.
 Maaps expects a pre-aligned fasta file. Because the sequences are expected to be in a valid reading frame, all sequences must be of length divisible by 3. 
 Maaps currently does not support gene-coordinate annotations.
+Maaps currently only outputs those changes that result in a 'mixed amino acid' at the site in question, it does not report positions where the change is synonymous.
 
 ### Output
 ```
