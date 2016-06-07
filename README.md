@@ -10,7 +10,10 @@ Maaps is a program that identifies mixed amino acid positions within an alignmen
 Maaps currently only takes one argument, `--fasta`. All other arguments are ignored.
 Maaps expects a pre-aligned fasta file. Because the sequences are expected to be in a valid reading frame, all sequences must be of length divisible by 3. 
 Maaps currently does not support gene-coordinate annotations.
-Maaps currently only outputs those changes that result in a 'mixed amino acid' at the site in question, it does not report positions where the change is synonymous.
+Maaps currently only outputs those changes that result in a 'mixed amino acid' at the site in question, it does not report positions where the change is synonymous. In order to report synonymous positions, please use the `--syn` flag.
+
+### Input
+While there are no requirements for the fasta headers, any spaces or other white-space characters will be replaced with underscores in the output.
 
 ### Output
 ```
