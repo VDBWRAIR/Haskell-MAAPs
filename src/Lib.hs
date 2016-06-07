@@ -90,7 +90,7 @@ process opts s@(Seq header' (SeqData {unSD=seq}) _ ) = do
   let rows = map (record . toList . (fieldList id')) xs
   return $ [(encodeWith outOptions rows)]
   where
-    id'  =  Id $  takeWhile (not . (`elem` [' ', '_', '-', '/'])) $ C.unpack $ unSL $ header'
+    id'  =  Id $  C.unpack $ unSL $ header'
     seq' =  C.unpack seq
     outOptions = defaultEncodeOptions {encDelimiter = fromIntegral (ord '\t')}
     getDegens :: String -> Either Error [Degen] 
@@ -189,13 +189,14 @@ fields = fromFoldable' $  ["ID", "Codon", "NTPos", "AA", "AAPos", "RowType"]
 -- Convert degen information into a list of "Fields" (wrapped text) for the CSV decoder to consume
 fieldList :: Id -> Degen -> FieldList Field
 fieldList (Id id') x = case x of
-  (Insert                (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
-  (WithN                 (Codon nts)  idx) -> tf' id' :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
-  (StopCodon      aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. "-"          :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
-  (Synonymous'     aa aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf "," ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
-  (NonSynonymous aas aaI (Codon nts)  ntI) -> tf' id' :. tf' nts :. jf "," ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
+  (Insert                (Codon nts)  idx)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Is_Gap :. Nil
+  (WithN                 (Codon nts)  idx)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. tf idx       :. "-"        :. "-"     :. tf Has_N :. Nil
+  (StopCodon      aa aaI (Codon nts)  ntI)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. "-"          :. aaf aa      :. tf  aaI :. tf Stop_Codon :. Nil
+  (Synonymous'     aa aaI (Codon nts)  ntI) ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. jf "," ntI :. aaf aa      :. tf aaI  :. tf Synonymous :. Nil
+  (NonSynonymous aas aaI (Codon nts)  ntI)  ->  (tf' $ replace' ' ' '-' id') :. tf' nts :. jf "," ntI :. aajf "/" aas :. tf aaI  :. tf Non_Synonymous :. Nil
   NormalCodon -> error "NormalCodon shouldn't be output"
   where 
+      replace' a b = map (\x -> if (a == x) then b else x)
       aaf = toField . pack . aaShow 
       tf' = toField
       tf a = toField $ pack (show a)
