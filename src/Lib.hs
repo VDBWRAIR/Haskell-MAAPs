@@ -62,7 +62,7 @@ run opts = do
   forM_ recs printOne
   where
     fastaFile = unHelpful $ fasta opts -- unwrap the help-annotated type
-    printOne x = either putStr (`forM_` C.putStrLn) $ process x
+    printOne x = either putStr (`forM_` C.putStrLn) $ process opts x
     header' = B.intercalate "\t" $ toList fields
 
 {- | remove "Degens" that are synonymous or normal.
@@ -70,9 +70,10 @@ Also removes the stop codons that are at the end--as these are legitimate stops 
 >>> filterDegens [NormalCodon, WithN (Codon "TNT") 2, StopCodon Z 3 (Codon "ATC") []]
 [WithN (Codon "TNT") 2]
 -}
-filterDegens :: [Degen] -> [Degen]
-filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropStopCodon $ xs
+filterDegens :: Options -> [Degen] -> [Degen]
+filterDegens opts xs = filter (\x -> (not $ isSynonymous x) || keepSyn ) $ filter (not . isNormal) $ dropStopCodon $ xs
   where
+    keepSyn = unHelpful $ syn opts
     isSynonymous (Synonymous' _ _ _ _) = True
     isSynonymous _                    = False
     isNormal NormalCodon = True
@@ -83,9 +84,9 @@ filterDegens xs = filter (not . isSynonymous) $ filter (not . isNormal) $ dropSt
     
 {- pull out the ids for each sequence by removing content after the seperator.
 create the CSV list for each degen and encode. -}
-process :: Sequence -> (Either Error [B.ByteString])
-process s@(Seq header' (SeqData {unSD=seq}) _ ) = do
-  xs <- filterDegens <$> getDegens (map toUpper seq')
+process :: Options -> Sequence -> (Either Error [B.ByteString])
+process opts s@(Seq header' (SeqData {unSD=seq}) _ ) = do
+  xs <- filterDegens opts <$> getDegens (map toUpper seq')
   let rows = map (record . toList . (fieldList id')) xs
   return $ [(encodeWith outOptions rows)]
   where
