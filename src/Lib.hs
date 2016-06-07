@@ -96,7 +96,7 @@ process opts s@(Seq header' (SeqData {unSD=seq}) _ ) = do
     getDegens :: String -> Either Error [Degen] 
     getDegens s = do
       (cds, aas) <- unzip <$> expand s
-      return $ zipWith3 toDegen cds (nub aas) [1..]
+      return $ zipWith3 toDegen cds aas [1..]
     
 toList :: FieldList a -> [a]  
 toList = foldr (:) []
@@ -116,7 +116,7 @@ toDegen cdn@(Codon nts) aas i
        ([])  ->   error $ "Invalid state; uncaught bad trasnlation at index " ++ show i ++ "codon " ++ nts
        (Z:[])  -> StopCodon     Z   i cdn  ntIdxs
        (aa:[]) | (not $ doIntersect nts ambigNts) -> NormalCodon 
-       (aa:[])    -> Synonymous' aa  i cdn  ntIdxs
+       aas | all (== (head aas)) aas   -> Synonymous' (head aas)  i cdn  ntIdxs
        aas   ->   NonSynonymous  aas i cdn  ntIdxs
   where
     ntIdxs = map (\n -> ((i - 1) * 3) + 1 + n) $ findIndices (`elem` ambigNts) nts
