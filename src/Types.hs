@@ -31,7 +31,8 @@ instance ParseField RowType
 data Options = Options {   rowFilter :: [RowType] <?> "What show -- Insert, etc.."
                          , sep :: First Seperator <?> "Comma or Tab output"
                          , fasta :: FilePath <?> "Input aligned fasta file"
-                         , align :: Bool <?> "Align the sequence first?"}
+                         , align :: Bool <?> "Align the sequence first?"
+                         , syn   :: Bool <?> "Display synonymous AAs?"}
              deriving (Generic, Show)
 
 instance ParseRecord Options
