@@ -29,6 +29,7 @@ library
                      , biocore
                      , fixed-list
                      , QuickCheck
+                     , safe
   default-language:    Haskell2010
 
 executable Maaps-exe
