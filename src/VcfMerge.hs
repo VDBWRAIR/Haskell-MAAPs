@@ -8,7 +8,7 @@ import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Text (Text())
-import Data.List (find, groupBy)
+import Data.List (find, groupBy, group)
 import Control.Monad (when)
 import Options.Generic
 
@@ -22,8 +22,9 @@ instance ParseRecord Options
 toInt x = readMay $ T.unpack x :: Maybe Int
 nth = flip atMay
 readNuc x = readMay $ T.unpack x :: Maybe Nucleotide
-data Nucleotide = A | T | C | G
+data Nucleotide = A | T | C | G | (*)
   deriving (Show, Eq, Read)
+
 
 data Stats = Stats { dp :: Int, alts :: [Nucleotide], pacs :: [Int], pos :: Int, ref :: Text }
   deriving (Show, Eq)
@@ -44,15 +45,15 @@ byRef xs = groupBy (\x y -> (headMay x) == (headMay y)) xs
 
 readMaaps = filter (\x -> length x > 1) . map T.words . tail . T.lines 
 -- note that ngs_mapper vcfs have an entry for every position, even if there are no ALTs there. so suck!
+--readVCF = catMaybes . map parseInfo . dropWhile (T.isPrefixOf "#") . T.lines
 readVCF :: Text -> [Stats]
-readVCF = catMaybes . map parseInfo . dropWhile (T.isPrefixOf "#") . T.lines
+readVCF x = fromMaybe (error "Failed to parse vcf file.") $ traverse parseInfo $ dropWhile (T.isPrefixOf "#") $ T.lines x
 main = do
   opts <- (getRecord "Starting maaps" :: IO Options)
   let vcf' = unHelpful $ vcf opts
   let tsv  = unHelpful $ maaps opts
   stats <- readVCF   <$> T.readFile vcf'
   maaps <- readMaaps <$> T.readFile tsv
---  putStrLn $ unlines $ map show $ joinMaapsStats stats maaps
   maapsHeader <- head <$> T.lines <$> T.readFile tsv
   let header = maapsHeader `T.append` "\tDP\tAlts"
   putStrLn $ T.unpack header
@@ -60,23 +61,25 @@ main = do
 
 process ms ss = T.unpack $ T.unlines $ map (uncurry output) $ joinMaapsStats ms ss
 
-type MRec = [Text]
 
---output :: Maybe (MRec, Stats) -> String
-output :: MRec -> Maybe Stats -> Text
+--output :: Maybe ([Text], Stats) -> String
+output :: [Text] -> Maybe Stats -> Text
 output mr (Just stats) = (T.intercalate "\t" mr) `T.append` "\t" `T.append` (formatStats stats)
-output mr _            = T.intercalate "\t" (mr ++ ["-", "-"])
+output mr Nothing      = T.intercalate "\t" (mr ++ ["-", "-"])
 
-joinMaapsStats :: [Stats] -> [MRec] -> [(MRec, Maybe Stats)]
-joinMaapsStats tsvs maaps = map (\m -> (m, find (match m) tsvs)) maaps
+joinMaapsStats :: [Stats] -> [[Text]] -> [([Text], Maybe Stats)]
+joinMaapsStats vcf maaps = map (\m -> (m, find (matcher m) vcf)) maaps
+  where matcher = if (length $ group $ fmap ref vcf) == 1 then matchPos else matchBoth
 --  f m = do
 --    r <- find (match m) tsvs
 --    return (r, m)
-
-match :: [Text] -> Stats -> Bool
-match x y = ((ref'  x) == (Just $ ref y))
-         && ((toInt =<< nth 2 x) == (Just $ pos y)) where
-ref' x = T.tail <$> snd <$> T.breakOn "_" <$> headMay x
+--matchPos x y = (toInt =<< nth 2 x) == (Just $ pos y)
+matchPos :: [Text] -> Stats -> Bool
+matchPos x y = (read $ T.unpack  (x !! 2)) == (pos y)
+matchBoth :: [Text] -> Stats -> Bool
+matchBoth x y = ((ref'  x) == (ref y)) && matchPos x y
+--ref' x = T.tail <$> snd <$> T.breakOn "_" <$> headMay x
+ref' x = T.tail $ snd $ T.breakOn "_" $ head x
 
    
 --groupBy (\x y -> ( (pos y)) 
