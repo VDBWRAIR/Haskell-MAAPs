@@ -29,8 +29,8 @@ data Nucleotide = A | T | C | G | (*)
 data Stats = Stats { dp :: Int, alts :: [Nucleotide], pacs :: [Int], pos :: Int, ref :: Text }
   deriving (Show, Eq)
 --
-formatStats Stats {dp=dp', alts=alts', pacs=pacs', pos=_, ref=_} = s where
-  s = T.intercalate "\t" [(tshow dp'), showAlts alts' pacs'] 
+formatStats Stats {dp=dp', alts=alts', pacs=pacs', pos=_, ref=ref'} = s where
+  s = T.intercalate "\t" [(tshow dp'), showAlts alts' pacs', ref'] 
   showAlts :: [Nucleotide] -> [Int] -> Text
   showAlts [] [] = "."
   showAlts xs ys = T.intercalate "," $ zipWith (\x y -> (tshow x) `T.append` "==" `T.append` (tshow y)) xs ys
@@ -55,7 +55,7 @@ main = do
   stats <- readVCF   <$> T.readFile vcf'
   maaps <- readMaaps <$> T.readFile tsv
   maapsHeader <- head <$> T.lines <$> T.readFile tsv
-  let header = maapsHeader `T.append` "\tDP\tAlts"
+  let header = maapsHeader `T.append` "\tDP\tAlts\tRef"
   putStrLn $ T.unpack header
   putStrLn $ process stats maaps
 
